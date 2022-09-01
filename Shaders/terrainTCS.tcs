@@ -1,0 +1,69 @@
+#version 450 core
+
+// first step of tesselation shader
+// tesselation control shader add/deletes control points and determines the tesselatation level
+// patch has three control points here (three vertices for each triangle)
+layout (vertices = 3) out;
+
+float getTessLevel(float dist1, float dist2);
+
+uniform vec3 eyePos;
+
+// vectors stored as arrays - each patch has three vertices, each with an xyz pos and xyz norm value 
+//posVS = position from Vertex Shader, posTC = position from this Tesselation Control shader
+in vec3 posVS[];
+in vec2 texVS[];
+
+out vec3 posTC[];
+out vec2 texTC[];
+
+void main()
+{
+  // tesselation level; we wil find this automatically later but for now hardcoded value
+   int tessLevel = 3;
+
+   // gpu can calculate each control point in parallel
+   // tesselation level same for entire patch so only need to set it once (for the first control point)
+   // gl_invocation called for each control point
+   if (gl_InvocationID==0)
+   {
+         float eyeToVertexDist0 = distance(eyePos, posVS[0]);
+         float eyeToVertexDist1 = distance(eyePos, posVS[1]);
+         float eyeToVertexDist2 = distance(eyePos, posVS[2]);
+
+		   // Calculate the tessellation levels
+          gl_TessLevelOuter[0] = getTessLevel(eyeToVertexDist1, eyeToVertexDist2) ; 
+          gl_TessLevelOuter[1] = getTessLevel(eyeToVertexDist2, eyeToVertexDist0) ; 
+          gl_TessLevelOuter[2] = getTessLevel(eyeToVertexDist0, eyeToVertexDist1) ;
+          gl_TessLevelInner[0] = gl_TessLevelOuter[2];
+
+   }
+
+   // pass through position and normal information
+   posTC[gl_InvocationID]  = posVS[gl_InvocationID] ;
+   texTC[gl_InvocationID] = texVS[gl_InvocationID] ;
+
+}
+
+float getTessLevel(float dist1, float dist2)
+{
+    float e;
+    float avgDist = (dist1 + dist2) / 2;
+    float alpha = 130;
+    float lambda = 15 / avgDist;
+    e = roundEven(lambda * alpha);
+   
+    if(avgDist < 150)
+    {
+        return 15;
+    }
+    else if (avgDist > 400)
+    {
+        return 1;
+    }
+    else
+    {
+        return e;
+    }
+
+}

@@ -1,0 +1,60 @@
+#version 450 core
+
+// reading in a triangle, split tesselated triangels evenly in a counter-clockwise direction (ccw)
+layout(triangles, fractional_even_spacing, ccw) in;
+
+// forward declare functions to perfrom interpolation with the barycentric coordinates from the Primitive Generator
+vec2 interpolate2D(vec2 v0, vec2 v1, vec2 v2) ;
+vec3 interpolate3D(vec3 v0, vec3 v1, vec3 v2) ;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform sampler2D heightMap;
+
+// read in vector arrays from previous shader
+in vec3 posTC[] ;
+in vec2 texTC[] ;
+
+// pass along the interpolated values
+out vec3 posES ;
+out vec2 texES ;
+out vec3 normES ;
+
+const float scale = 100;
+const int scaleFactor = 100;
+void main()
+{
+    // interpolate the normal and xyz position using the linear interpolation function
+    // use 3D because they are in three dimensions; 2D also included for uv texture coordinates
+
+   posES = interpolate3D(posTC[0], posTC[1], posTC[2]) ;
+   texES = interpolate2D(texTC[0], texTC[1], texTC[2]) ;
+
+   float right  = (textureOffset(heightMap, texES, ivec2(1,0)).r)*scale;
+   float left   = (textureOffset(heightMap, texES, ivec2(-1,0)).r)*scale;
+   float up     = (textureOffset(heightMap, texES, ivec2(0,1)).r)*scale;
+   float down   = (textureOffset(heightMap, texES, ivec2(0,-1)).r)*scale;
+
+   float leftRight = left-right;
+   float upDown = up-down;
+   normES = normalize(vec3(leftRight, 2.0, upDown));
+
+   float height = (texture(heightMap, texES).r) ;
+   posES.y = height * scaleFactor;
+
+   // transform vertex to clip space  
+   gl_Position =  projection * view * vec4(posES, 1.0); 
+} 
+
+
+//basic linear interpolation
+vec2 interpolate2D(vec2 v0, vec2 v1, vec2 v2)
+{
+   	return vec2(gl_TessCoord.x) * v0 + vec2(gl_TessCoord.y) * v1 + vec2(gl_TessCoord.z) * v2;
+}
+
+vec3 interpolate3D(vec3 v0, vec3 v1, vec3 v2)
+{
+   	return vec3(gl_TessCoord.x) * v0 + vec3(gl_TessCoord.y) * v1 + vec3(gl_TessCoord.z) * v2;
+}
+
